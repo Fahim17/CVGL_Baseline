@@ -1,0 +1,13 @@
+original
+
+Recall@1: 18.2906 - Recall@5: 42.7980 - Recall@10: 56.5828 - Recall@top1: 99.6454
+
+
+cropped
+
+Recall@1: 3.7093 - Recall@5: 11.7556 - Recall@10: 18.4791 - Recall@top1: 87.6196
+
+
+cropped-val
+
+Recall@1: 0.2814 - Recall@5: 1.0693 - Recall@10: 2.0261 - Recall@top1: 11.6389
