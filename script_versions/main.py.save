@@ -1,0 +1,60 @@
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+import numpy as np
+from CVUSA_dataset import CVUSA_dataset_cropped
+from resnet_model import ResNet
+
+train_data_path = '/media/fahimul/2B721C03261BDC8D/Researc' #don't include the / at the end
+train_data= pd.read_csv(f'{train_data_path}/splits/train-19zl.csv')
+
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+])
+
+train_ds = CVUSA_dataset_cropped(df = train_data, path=train_data_path, transform=transform)
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
+
+# Define Triplet Loss
+class TripletLoss(nn.Module):
+    def __init__(self, margin=0.2):
+        super(TripletLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, anchor, positive, negative):
+        distance_positive = torch.sum(torch.pow(anchor - positive, 2), dim=1)
+        distance_negative = torch.sum(torch.pow(anchor - negative, 2), dim=1)
+        losses = torch.relu(distance_positive - distance_negative + self.margin)
+        return torch.mean(losses)
+
+
+def train(model, criterion, optimizer, train_loader, num_epochs=10, dev='cpu'):
+    model.train()
+    for epoch in range(num_epochs):
+        total_loss = 0.0
+        for i, (anchor, positive, negative) in enumerate(tqdm(train_loader)):
+            optimizer.zero_grad()
+            anchor, positive, negative = anchor.to(dev), positive.to(dev), negative.to(dev)
+            anchor_embedding = model(anchor)
+            positive_embedding = model(positive)
+            negative_embedding = model(negative)
+            loss = criterion(anchor_embedding, positive_embedding, negative_embedding)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        print(f"Epoch {epoch+1}, Loss: {total_loss}")
+
+# Step 5: Train the model
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Device: {device}")
+model = ResNet(emb_dim=512).to(device)
+criterion = TripletLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+train(model, criterion, optimizer, train_loader, num_epochs=10, dev=device)
