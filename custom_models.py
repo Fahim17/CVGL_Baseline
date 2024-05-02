@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 from torchvision.models import resnet18, resnet50, ResNet18_Weights, ResNet50_Weights, vit_b_16, ViT_B_16_Weights
 from vit_pytorch import ViT
+from models.clip_b32 import getClipModel
 
 
 
@@ -97,12 +98,12 @@ class ResNet2(nn.Module):
         return self.net(img)
 
 
-# Define the ResNet model
+# Define the VIT model
 class VIT(nn.Module):
     def __init__(self):
         super(VIT, self).__init__()
         self.modelName = 'VIT'
-        self.vit_q = ViT(
+        self.queue = ViT(
             image_size = 256,
             patch_size = 32,
             num_classes = 512,
@@ -113,7 +114,7 @@ class VIT(nn.Module):
             dropout = 0.1,
             emb_dropout = 0.1
             )
-        self.vit_r = ViT(
+        self.ref = ViT(
             image_size = 256,
             patch_size = 32,
             num_classes = 512,
@@ -129,12 +130,42 @@ class VIT(nn.Module):
 
     def forward(self, q, r, isTrain = True, isQuery = True):
         if isTrain:
-            return self.vit_q(q), self.vit_r(r)
+            return self.queue(q), self.ref(r)
         else:
             if isQuery:
-                return self.vit_q(q)
+                return self.queue(q)
             else:
-                return self.vit_r(r)
+                return self.ref(r)
+
+
+
+
+
+
+# Define the CLIP model
+class CLIP_model(nn.Module):
+    def __init__(self):
+        super(CLIP_model, self).__init__()
+        self.modelName = 'CLIP'
+        self.queue = getClipModel()
+        for param in self.queue.parameters():
+            param.requires_grad = False
+        self.ref = getClipModel()
+        for param in self.ref.parameters():
+            param.requires_grad = False
+
+        
+
+
+
+    def forward(self, q, r, isTrain = True, isQuery = True):
+        if isTrain:
+            return self.queue.encode_image(q), self.ref.encode_image(r)
+        else:
+            if isQuery:
+                return self.queue.encode_image(q)
+            else:
+                return self.ref.encode_image(r)
 
 
 

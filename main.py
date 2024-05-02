@@ -12,14 +12,15 @@ import time
 import numpy as np
 from CVUSA_dataset import CVUSA_dataset_cropped, CVUSA_Dataset_Eval
 # from CVUSA_dataset import CVUSA_Dataset_Eval
-from custom_models import ResNet, VIT
-from losses import TripletLoss, SoftTripletBiLoss
+from custom_models import ResNet, VIT, CLIP_model
+from losses import SoftTripletBiLoss
 from train import train
 from eval import accuracy, predict
 from eval import calculate_scores
 import torch.nn.functional as F
 import copy
 import math
+from pytorch_metric_learning import losses as LS
 
 
 
@@ -34,9 +35,10 @@ val_data= pd.read_csv(f'{data_path}/splits/val-19zl.csv')
 # df_loss = pd.DataFrame(columns=['Loss'])
 
 transform = transforms.Compose([
-    # transforms.Resize((224, 224)),
-    transforms.RandomCrop(224),
+    transforms.Resize((224, 224)),
+    # transforms.RandomCrop(224),
     transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
 train_ds = CVUSA_dataset_cropped(df = train_data, path=data_path, transform=transform)
@@ -65,9 +67,9 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
     embed_dim = 512
-    lr = 0.0001
+    lr = 0.01
     batch_size = 64
-    epochs = 30
+    epochs = 10
     loss_id = get_rand_id()
     loss_margin = 1
 
@@ -80,12 +82,14 @@ def main():
     # model_r = ResNet(emb_dim=embed_dim).to(device)
     # model_q = ResNet(emb_dim=embed_dim).to(device)
 
-
-    model = VIT().to(device)
+    # model = VIT().to(device)
+    model = CLIP_model()
     
     # criterion = TripletLoss(margin=loss_margin)
-    # criterion = nn.TripletMarginLoss(margin=1.0)
-    criterion = SoftTripletBiLoss()
+    # criterion = nn.TripletMarginLoss(margin=0.5)
+    criterion = SoftTripletBiLoss(alpha=0.5)
+
+    
 
 
     parameters = list(filter(lambda p: p.requires_grad, model.parameters()))
@@ -93,8 +97,8 @@ def main():
     #     if param.requires_grad:
     #         print(name)
     # optimizer = optim.Adam(parameters, lr=lr)
-    optimizer = optim.AdamW(parameters, lr=lr)
-    # optimizer = optim.SGD(parameters, lr=lr)
+    # optimizer = optim.AdamW(parameters, lr=lr)
+    optimizer = optim.SGD(parameters, lr=lr)
 
     
     

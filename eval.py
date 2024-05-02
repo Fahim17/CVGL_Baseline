@@ -4,6 +4,8 @@ import time
 import copy
 import numpy as np
 from torch.cuda.amp import autocast
+import torch.nn.functional as F
+
 
 def predict(model, dataloader, verbose=True, dev=torch.device('cpu'), normalize_features=True, isQuery=True):
     
@@ -43,7 +45,7 @@ def predict(model, dataloader, verbose=True, dev=torch.device('cpu'), normalize_
 
             
         
-            # # normalize is calculated in fp32
+            # normalize is calculated in fp32
             # if normalize_features:
             #     img_feature = F.normalize(img_feature, dim=-1)
             

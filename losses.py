@@ -4,17 +4,17 @@ import numpy as np
 
 
 
-# Define Triplet Loss
-class TripletLoss(nn.Module):
-    def __init__(self, margin=0.2):
-        super(TripletLoss, self).__init__()
-        self.margin = margin
+# # Define Triplet Loss
+# class TripletLoss(nn.Module):
+#     def __init__(self, margin=0.2):
+#         super(TripletLoss, self).__init__()
+#         self.margin = margin
 
-    def forward(self, anchor, positive, negative):
-        distance_positive = torch.sum(torch.pow(anchor - positive, 2), dim=1)
-        distance_negative = torch.sum(torch.pow(anchor - negative, 2), dim=1)
-        losses = torch.relu(distance_positive - distance_negative + self.margin)
-        return torch.mean(losses)
+#     def forward(self, anchor, positive, negative):
+#         distance_positive = torch.sum(torch.pow(anchor - positive, 2), dim=1)
+#         distance_negative = torch.sum(torch.pow(anchor - negative, 2), dim=1)
+#         losses = torch.relu(distance_positive - distance_negative + self.margin)
+#         return torch.mean(losses)
 
 
 
@@ -33,23 +33,31 @@ class SoftTripletBiLoss(nn.Module):
 
     def single_forward(self, inputs_q, inputs_k):
         n = inputs_q.size(0)
-
+        
         normalized_inputs_q = inputs_q / torch.norm(inputs_q, dim=1, keepdim=True)
         normalized_inputs_k = inputs_k / torch.norm(inputs_k, dim=1, keepdim=True)
+        
+
         # Compute similarity matrix
         sim_mat = torch.matmul(normalized_inputs_q, normalized_inputs_k.t())
-
         # split the positive and negative pairs
         eyes_ = torch.eye(n).cuda()
 
         pos_mask = eyes_.eq(1)
         neg_mask = ~pos_mask
+        
+        # print(pos_mask.shape)
 
         pos_sim = torch.masked_select(sim_mat, pos_mask)
         neg_sim = torch.masked_select(sim_mat, neg_mask)
 
         pos_sim_ = pos_sim.unsqueeze(dim=1).expand(n, n-1)
         neg_sim_ = neg_sim.reshape(n, n-1)
+
+        # print(f'after apply unsqueeze{pos_sim_}')
+        # print(f'after apply unsqueeze{neg_sim_.shape}')
+
+
 
         loss_batch = torch.log(1 + torch.exp((neg_sim_ - pos_sim_) * self.alpha))
         if torch.isnan(loss_batch).any():
@@ -61,3 +69,6 @@ class SoftTripletBiLoss(nn.Module):
         mean_pos_sim = pos_sim.mean().item()
         mean_neg_sim = neg_sim.mean().item()
         return loss, mean_pos_sim, mean_neg_sim
+    
+
+

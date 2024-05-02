@@ -58,7 +58,13 @@ def train(model, criterion, optimizer, train_loader, num_epochs=10, dev='cpu'):
             optimizer.zero_grad()
             anchor, positive, negative = anchor.to(dev), positive.to(dev), negative.to(dev)
             anchor_embedding, positive_embedding = model(q = anchor, r = positive, isTrain = True, isQuery = True)
+            # print(anchor_embedding)
             loss, mean_p, mean_n  = criterion(anchor_embedding, positive_embedding)
+
+            # anchor_embedding, positive_embedding = model(q = anchor, r = positive, isTrain = True, isQuery = True)
+            # _, negative_embedding = model(q = anchor, r = negative, isTrain = True, isQuery = True)
+            # loss  = criterion(anchor_embedding, positive_embedding, negative_embedding)
+
             loss.backward()
             optimizer.step()
             # total_loss += loss.item()
