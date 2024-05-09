@@ -1,18 +1,29 @@
 import torch
 import clip
+from transformers import CLIPModel
+from transformers import CLIPVisionModel
 
 
+# OG CLIP
+# def getClipModel():
+#     device = "cuda" if torch.cuda.is_available() else "cpu"
+#     model, preprocess = clip.load("ViT-B/32", device=device)
+#     for param in model.parameters():
+#         param.requires_grad = False
+
+#     return model
 
 
+# HuggingFace CLIP
 def getClipModel():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, preprocess = clip.load("ViT-B/32", device=device)
-    # for param in model.parameters():
-    #     param.requires_grad = False
+
+    model = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    # print(f'Model Device:{model.device}')
+    for param in model.parameters():
+        param.requires_grad = False
 
     return model
-
-
 
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"

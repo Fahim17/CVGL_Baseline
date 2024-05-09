@@ -61,8 +61,8 @@ def predict(model, dataloader, verbose=True, dev=torch.device('cpu'), normalize_
         img_features = torch.cat(img_features_list, dim=0) 
         ids_list = torch.cat(ids_list, dim=0).to(dev)
 
-        # print(f'img_feature: {img_features.shape}')
-        # print(f'ids: {ids_list.shape}')
+        print(f'img_feature: {img_features.shape}')
+        print(f'ids: {ids_list.shape}')
         
     if verbose:
         bar.close()
@@ -148,27 +148,20 @@ def calculate_scores(query_features, reference_features, query_labels, reference
 
 def accuracy(query_features, reference_features, query_labels, topk=[1,5,10]):
     """Computes the accuracy over the k top predictions for the specified values of k"""
-    # print(f'query labels {query_labels}')
+    print(f'query labels {query_labels}')
     ts = time.time()
     N = query_features.shape[0]
     M = reference_features.shape[0]
     topk.append(M//100)
     results = np.zeros([len(topk)])
     # for CVUSA, CVACT
-    query_features = query_features.cpu()
-    reference_features = reference_features.cpu()
-    query_labels = query_labels.cpu()
-
-
     if N < 80000:
         query_features_norm = np.sqrt(np.sum((query_features**2).numpy(), axis=1, keepdims=True))
         reference_features_norm = np.sqrt(np.sum((reference_features ** 2).numpy(), axis=1, keepdims=True))
         similarity = np.matmul(query_features/query_features_norm, (reference_features/reference_features_norm).T)
-        similarity = similarity.numpy()
-        for i in range(N):
-            # ranking = np.sum((similarity[i,:]>similarity[i,query_labels[i]])*1.)
-            ranking = np.sum((similarity[i,:]>similarity[i,i])*1.)
 
+        for i in range(N):
+            ranking = np.sum((similarity[i,:]>similarity[i,query_labels[i]])*1.)
 
             for j, k in enumerate(topk):
                 if ranking < k:

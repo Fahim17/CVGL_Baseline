@@ -15,12 +15,13 @@ from CVUSA_dataset import CVUSA_dataset_cropped, CVUSA_Dataset_Eval
 from custom_models import ResNet, VIT, CLIP_model
 from losses import SoftTripletBiLoss
 from train import train
-from eval import predict, accuracy, calculate_scores
+from eval import accuracy, predict
+from eval import calculate_scores
 import torch.nn.functional as F
 import copy
 import math
 from pytorch_metric_learning import losses as LS
-from helper_func import get_rand_id, hyparam_info, save_losses
+from helper_func import save_losses
 from transformers import CLIPProcessor
 
 
@@ -49,17 +50,31 @@ val_que = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='que
 val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='reference', transforms=transform)
 
 
+def hyparam_info(emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, mdl_nm):
+    print('\nHyperparameter info:')
+    print(f'Loss ID: {loss_id}')
+    print(f'Embedded dimension: {emb_dim}')
+    print(f'Learning rate: {ln_rate}')
+    print(f'Batch Size: {batch}')
+    print(f'Loss Margin: {ls_mrgn}')
+    print(f'Epoch: {epc}')
+    print(f'Training Size: {train_data.shape[0]}')
+    print(f'Model Name: {mdl_nm}')
+    print('\n')
 
+def get_rand_id():
+    dt = datetime.now()
+    return f"{math.floor(dt.timestamp())}"[3:]
 
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
-    embed_dim = 256
+    embed_dim = 512
     lr = 0.0001
     batch_size = 64
     epochs = 30
-    expID = get_rand_id()
+    loss_id = get_rand_id()
     loss_margin = 1
 
 
@@ -72,11 +87,11 @@ def main():
     # model_q = ResNet(emb_dim=embed_dim).to(device)
 
     # model = VIT().to(device)
-    model = CLIP_model()
+    model = CLIP_model().float().to(device=device)
     
     # criterion = TripletLoss(margin=loss_margin)
     # criterion = nn.TripletMarginLoss(margin=0.5)
-    criterion = SoftTripletBiLoss()
+    criterion = SoftTripletBiLoss(alpha=0.5)
 
     
 
@@ -91,28 +106,26 @@ def main():
 
     
     
-    hyparam_info(emb_dim=embed_dim, loss_id=expID, ln_rate=lr, batch=batch_size, epc=epochs, ls_mrgn=loss_margin, trn_sz=train_data.shape[0], mdl_nm=model.modelName)
+    hyparam_info(emb_dim=embed_dim, loss_id=loss_id, ln_rate=lr, batch=batch_size, epc=epochs, ls_mrgn=loss_margin, mdl_nm=model.modelName)
 
     print("Training Start")
     all_loses = train(model, criterion, optimizer, train_loader, num_epochs=epochs, dev=device)
     df_loss = pd.DataFrame({'Loss': all_loses})
-    df_loss.to_csv(f'losses/losses_{expID}.csv')
-    save_losses(df=df_loss, emb_dim=embed_dim, loss_id=expID, ln_rate=lr, batch=batch_size, epc=epochs, ls_mrgn=loss_margin, trn_sz=train_data.shape[0],mdl_nm=model.modelName)
+    df_loss.to_csv(f'losses/losses_{loss_id}.csv')
+    save_losses(df=df_loss, emb_dim=embed_dim, loss_id=loss_id, ln_rate=lr, batch=batch_size, epc=epochs, ls_mrgn=loss_margin, trn_sz=train_data.shape[0],mdl_nm=model.modelName)
 
 
     print("\nExtract Features:")
     query_features, query_labels = predict(model=model, dataloader=val_loader_que, dev=device, isQuery=True)
     reference_features, reference_labels = predict(model = model, dataloader=val_loader_ref, dev=device, isQuery=False) 
-    
-    print(query_labels)
 
 
     print("Compute Scores:")
-    # r1 =  calculate_scores(query_features, reference_features, query_labels, reference_labels, step_size=1000, ranks=[1, 5, 10])
-    r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=query_labels, topk=[1, 5, 10])
+    r1 =  calculate_scores(query_features, reference_features, query_labels, reference_labels, step_size=1000, ranks=[1, 5, 10])
+    # r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=query_labels, topk=[1, 5, 10])
 
 
-    print(r1) 
+    #print(r1) 
         
 
 

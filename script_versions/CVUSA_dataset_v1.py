@@ -10,7 +10,6 @@ from PIL import Image
 import json
 from torchvision.transforms import transforms
 import random
-from transformers import CLIPProcessor
 
 
 class CVUSA_dataset_cropped(Dataset):
@@ -19,7 +18,6 @@ class CVUSA_dataset_cropped(Dataset):
         self.is_train = train
         self.transform = transform
         self.path = path
-        self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
         if self.is_train:
             self.sat_images = df.iloc[:, 0].values
             self.str_images = df.iloc[:, 1].values
@@ -46,22 +44,9 @@ class CVUSA_dataset_cropped(Dataset):
             negative_img = Image.open(negative_image_path).convert('RGB')
             #negative_img = self.images[negative_item].reshape(28, 28, 1)
             if self.transform!=None:
-                # anchor_img = self.transform(anchor_img)
-                # positive_img = self.transform(positive_img)                   
-                # negative_img = self.transform(negative_img)
-                anchor_img = self.processor(images=anchor_img, return_tensors="pt")
-                positive_img = self.processor(images=positive_img, return_tensors="pt")
-                negative_img = self.processor(images=negative_img, return_tensors="pt")
-
-                anchor_img = anchor_img.pixel_values
-                anchor_img = torch.squeeze(anchor_img)
-
-                positive_img = positive_img.pixel_values
-                positive_img = torch.squeeze(positive_img)
-
-                negative_img = negative_img.pixel_values
-                negative_img = torch.squeeze(negative_img)
-                
+                anchor_img = self.transform(anchor_img)
+                positive_img = self.transform(positive_img)                   
+                negative_img = self.transform(negative_img)
         return anchor_img, positive_img, negative_img
     
 

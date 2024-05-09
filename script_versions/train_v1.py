@@ -41,10 +41,11 @@ def time_stamp():
 
 
 
-# only for HuggingFace CLIP
+# only for vit_pytorch
 
 def train(model, criterion, optimizer, train_loader, num_epochs=10, dev='cpu'):
     model.train()
+
 
     epoch_loss = []
 

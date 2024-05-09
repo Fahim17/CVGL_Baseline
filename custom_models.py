@@ -142,30 +142,102 @@ class VIT(nn.Module):
 
 
 
-# Define the CLIP model
-class CLIP_model(nn.Module):
-    def __init__(self):
-        super(CLIP_model, self).__init__()
-        self.modelName = 'CLIP'
-        self.queue = getClipModel()
-        for param in self.queue.parameters():
-            param.requires_grad = False
-        self.ref = getClipModel()
-        for param in self.ref.parameters():
-            param.requires_grad = False
+# # Define the CLIP model
+# class CLIP_model(nn.Module):
+#     def __init__(self):
+#         super(CLIP_model, self).__init__()
+#         self.modelName = 'CLIP'
+#         self.queue = getClipModel()
+#         # for param in self.queue.parameters():
+#         #     param.requires_grad = False
+#         self.ref = getClipModel()
+#         # for param in self.ref.parameters():
+#         #     param.requires_grad = False
+
+#         self.queue_fc1 = nn.Linear(512, 256) 
+#         self.ref_fc1 = nn.Linear(512, 256) 
 
         
 
 
 
+#     def forward(self, q, r, isTrain = True, isQuery = True):
+#         xq = self.queue.encode_image(q)
+#         xq = self.queue_fc1(xq)
+#         xq = torch.sigmoid(xq)
+
+
+#         xr = self.ref.encode_image(r)
+#         xr = self.ref_fc1(xr)
+#         xr = torch.sigmoid(xr)
+        
+#         if isTrain:
+#             return xq, xr
+#             # return self.queue.encode_image(q), self.ref.encode_image(r)
+#         else:
+#             if isQuery:
+#                 return xq
+#                 # return self.queue.encode_image(q)
+#             else:
+#                 return xr
+#                 # return self.ref.encode_image(r)
+
+
+# Define the Hugging face CLIP model
+class CLIP_model(nn.Module):
+    def __init__(self):
+        super(CLIP_model, self).__init__()
+        self.modelName = 'CLIP'
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.queue = getClipModel()
+        # for param in self.queue.parameters():
+        #     param.requires_grad = False
+        self.ref = getClipModel()
+        # for param in self.ref.parameters():
+        #     param.requires_grad = False
+
+        self.norm_shape = self.queue.vision_model.post_layernorm.normalized_shape[0]
+
+        self.queue_fc1 = nn.Linear(self.norm_shape, 256).to(device=self.device)
+        self.ref_fc1 = nn.Linear(self.norm_shape, 256).to(device=self.device)
+
+    def get_vision_embeddings(self, imgs, isQ):
+        # Preprocess the images
+        temp_dic = {'pixel_values':imgs}
+        # Use the CLIP model to get vision embeddings
+        
+        with torch.no_grad():
+            if isQ:
+                outputs = self.queue(**temp_dic)
+            else:
+                outputs = self.ref(**temp_dic)
+            last_hidden_state = outputs.last_hidden_state
+            pooled_output = outputs.pooler_output  # pooled CLS states
+        return pooled_output
+
+
     def forward(self, q, r, isTrain = True, isQuery = True):
+        xq = self.get_vision_embeddings(imgs = q, isQ = True )
+        xq = self.queue_fc1(xq)
+        xq = torch.sigmoid(xq)
+
+        xr = self.get_vision_embeddings(imgs = r, isQ = False )
+        xr = self.ref_fc1(xr)
+        xr = torch.sigmoid(xr)
+        
         if isTrain:
-            return self.queue.encode_image(q), self.ref.encode_image(r)
+            # print(f'dukse train')
+            return xq, xr
+            # return self.queue.encode_image(q), self.ref.encode_image(r)
         else:
             if isQuery:
-                return self.queue.encode_image(q)
+                # print(f'dukse queue')
+                return xq
+                # return self.queue.encode_image(q)
             else:
-                return self.ref.encode_image(r)
+                # print(f'dukse ref')
+                return xr
+                # return self.ref.encode_image(r)
 
 
 

@@ -1,0 +1,6 @@
+losses/*.csv
+logs/*.*
+logs/old/*.*
+data/
+dataset/
+CLIP.jpg
