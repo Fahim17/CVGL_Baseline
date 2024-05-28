@@ -6,9 +6,12 @@ import numpy as np
 from torch.cuda.amp import autocast
 import torch.nn.functional as F
 
+from helper_func import save_tensor
+
 
 def predict(model, dataloader, verbose=True, dev=torch.device('cpu'), normalize_features=True, isQuery=True):
     
+
     model.eval()
 
     
@@ -82,6 +85,7 @@ def calculate_scores(query_features, reference_features, query_labels, reference
     query_labels_np = query_labels.cpu().numpy()
     reference_labels_np = reference_labels.cpu().numpy()
     
+    
     ref2index = dict()
     for i, idx in enumerate(reference_labels_np):
         ref2index[idx] = i
@@ -112,7 +116,7 @@ def calculate_scores(query_features, reference_features, query_labels, reference
     bar = tqdm(range(Q))
     
     for i in bar:
-        
+        # print(f'i={i}, query_labels_np={query_labels_np[i]}, ref2index={ref2index[query_labels_np[i]]}')
         # similiarity value of gt reference
         gt_sim = similarity[i, ref2index[query_labels_np[i]]]
         
@@ -143,7 +147,7 @@ def calculate_scores(query_features, reference_features, query_labels, reference
         
     print(' - '.join(string)) 
 
-    return results[0]
+    return results
 
 
 def accuracy(query_features, reference_features, query_labels, topk=[1,5,10]):
@@ -165,6 +169,8 @@ def accuracy(query_features, reference_features, query_labels, topk=[1,5,10]):
         reference_features_norm = np.sqrt(np.sum((reference_features ** 2).numpy(), axis=1, keepdims=True))
         similarity = np.matmul(query_features/query_features_norm, (reference_features/reference_features_norm).T)
         similarity = similarity.numpy()
+        # print(similarity)
+        # save_tensor(var_name='similarity', var=similarity)
         for i in range(N):
             # ranking = np.sum((similarity[i,:]>similarity[i,query_labels[i]])*1.)
             ranking = np.sum((similarity[i,:]>similarity[i,i])*1.)
@@ -192,4 +198,4 @@ def accuracy(query_features, reference_features, query_labels, topk=[1,5,10]):
 
     results = results/ query_features.shape[0] * 100.
     print('Percentage-top1:{}, top5:{}, top10:{}, top1%:{}, time:{}'.format(results[0], results[1], results[2], results[-1], time.time() - ts))
-    return results[:2]
+    return results

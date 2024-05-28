@@ -1,7 +1,7 @@
 import torch
 import clip
-from transformers import CLIPModel
-from transformers import CLIPVisionModel
+# from transformers import CLIPModel
+from transformers import CLIPVisionModel, CLIPVisionModelWithProjection
 
 
 # OG CLIP
@@ -18,10 +18,11 @@ from transformers import CLIPVisionModel
 def getClipModel():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    model = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    # model = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    model = CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-base-patch32").to(device)
     # print(f'Model Device:{model.device}')
-    for param in model.parameters():
-        param.requires_grad = False
+    # for param in model.parameters():
+    #     param.requires_grad = False
 
     return model
 

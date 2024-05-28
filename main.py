@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -13,7 +14,7 @@ import numpy as np
 from CVUSA_dataset import CVUSA_dataset_cropped, CVUSA_Dataset_Eval
 # from CVUSA_dataset import CVUSA_Dataset_Eval
 from custom_models import ResNet, VIT, CLIP_model
-from losses import SoftTripletBiLoss
+from losses import Contrastive_loss, SoftTripletBiLoss, InfoNCE
 from train import train
 from eval import predict, accuracy, calculate_scores
 import torch.nn.functional as F
@@ -22,6 +23,7 @@ import math
 from pytorch_metric_learning import losses as LS
 from helper_func import get_rand_id, hyparam_info, save_losses
 from transformers import CLIPProcessor
+from attributes import Configuration
 
 
 
@@ -31,22 +33,23 @@ from transformers import CLIPProcessor
 data_path = '/data/Research/Dataset/CVUSA_Cropped/CVUSA' #don't include the / at the end
 
 train_data= pd.read_csv(f'{data_path}/splits/train-19zl.csv')
+# train_data= pd.read_csv(f'{data_path}/splits/train-19zl_30.csv')
 val_data= pd.read_csv(f'{data_path}/splits/val-19zl.csv')
 
 # df_loss = pd.DataFrame(columns=['Loss'])
 
 transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    # transforms.RandomCrop(224),
+    # transforms.Resize((224, 224)),
+    transforms.RandomCrop(224),
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                         std=[0.229, 0.224, 0.225]),
 ])
-# transform = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
 
 train_ds = CVUSA_dataset_cropped(df = train_data, path=data_path, transform=transform)
-val_que = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='query', transforms=transform)
-val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='reference', transforms=transform)
+val_que = CVUSA_Dataset_Eval(data_folder=data_path, split='val', img_type='query', transforms=transform)
+val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='val', img_type='reference', transforms=transform)
 
 
 
@@ -55,30 +58,41 @@ val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='ref
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
-    embed_dim = 256
-    lr = 0.0001
+    embed_dim = 1000
+    lr = 0.00001
     batch_size = 64
-    epochs = 30
+    epochs = 50
     expID = get_rand_id()
     loss_margin = 1
+
 
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False)
     val_loader_que = DataLoader(val_que, batch_size=batch_size, shuffle=False)
     val_loader_ref = DataLoader(val_ref, batch_size=batch_size, shuffle=False)
 
+    os.mkdir(f'model_weights/{expID}')
+
     # model = ResNet(emb_dim=embed_dim).to(device)
     # model_r = ResNet(emb_dim=embed_dim).to(device)
     # model_q = ResNet(emb_dim=embed_dim).to(device)
 
+    # model = ResNet().to(device)
     # model = VIT().to(device)
-    model = CLIP_model()
+    model = CLIP_model(embed_dim=embed_dim)
     
+    # torch.save(model, f'model_weights/{expID}/model_st.pth')
+
     # criterion = TripletLoss(margin=loss_margin)
     # criterion = nn.TripletMarginLoss(margin=0.5)
-    criterion = SoftTripletBiLoss()
+  
+    # criterion = SoftTripletBiLoss()
 
-    
+    loss_fn = torch.nn.CrossEntropyLoss(label_smoothing=0.5)
+    criterion = InfoNCE(loss_function=loss_fn,
+                            device=device,
+                            )
+
 
 
     parameters = list(filter(lambda p: p.requires_grad, model.parameters()))
@@ -97,24 +111,35 @@ def main():
     all_loses = train(model, criterion, optimizer, train_loader, num_epochs=epochs, dev=device)
     df_loss = pd.DataFrame({'Loss': all_loses})
     df_loss.to_csv(f'losses/losses_{expID}.csv')
-    save_losses(df=df_loss, emb_dim=embed_dim, loss_id=expID, ln_rate=lr, batch=batch_size, epc=epochs, ls_mrgn=loss_margin, trn_sz=train_data.shape[0],mdl_nm=model.modelName)
+
 
 
     print("\nExtract Features:")
     query_features, query_labels = predict(model=model, dataloader=val_loader_que, dev=device, isQuery=True)
     reference_features, reference_labels = predict(model = model, dataloader=val_loader_ref, dev=device, isQuery=False) 
     
-    print(query_labels)
 
 
     print("Compute Scores:")
     # r1 =  calculate_scores(query_features, reference_features, query_labels, reference_labels, step_size=1000, ranks=[1, 5, 10])
     r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=query_labels, topk=[1, 5, 10])
+    
+    save_losses(df=df_loss, 
+                emb_dim=embed_dim, 
+                loss_id=expID, 
+                ln_rate=lr, 
+                batch=batch_size, 
+                epc=epochs, 
+                ls_mrgn=loss_margin, 
+                trn_sz=train_data.shape[0],
+                mdl_nm=model.modelName,
+                rslt=r1)
 
 
     print(r1) 
         
 
+    torch.save(model, f'model_weights/{expID}/model_tr.pth')
 
 
 

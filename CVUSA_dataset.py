@@ -10,7 +10,7 @@ from PIL import Image
 import json
 from torchvision.transforms import transforms
 import random
-from transformers import CLIPProcessor
+from transformers import CLIPProcessor, AutoProcessor
 
 
 class CVUSA_dataset_cropped(Dataset):
@@ -19,7 +19,9 @@ class CVUSA_dataset_cropped(Dataset):
         self.is_train = train
         self.transform = transform
         self.path = path
-        self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        # self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        self.processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
         if self.is_train:
             self.sat_images = df.iloc[:, 0].values
             self.str_images = df.iloc[:, 1].values
@@ -49,6 +51,7 @@ class CVUSA_dataset_cropped(Dataset):
                 # anchor_img = self.transform(anchor_img)
                 # positive_img = self.transform(positive_img)                   
                 # negative_img = self.transform(negative_img)
+
                 anchor_img = self.processor(images=anchor_img, return_tensors="pt")
                 positive_img = self.processor(images=positive_img, return_tensors="pt")
                 negative_img = self.processor(images=negative_img, return_tensors="pt")
@@ -119,6 +122,8 @@ class CVUSA_Dataset_Eval(Dataset):
         self.split = split
         self.img_type = img_type
         self.transforms = transforms
+        self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
         
         if split == 'train':
             self.df = pd.read_csv(f'{data_folder}/splits/train-19zl.csv', header=None)
@@ -152,7 +157,12 @@ class CVUSA_Dataset_Eval(Dataset):
         
         # image transforms
         if self.transforms is not None:
-            img = self.transforms(img)
+            # img = self.transforms(img)
+            
+            img = self.processor(images=img, return_tensors="pt")
+            img = img.pixel_values
+            img = torch.squeeze(img)
+
             
         label = torch.tensor(self.label[index], dtype=torch.long)
 
