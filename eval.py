@@ -23,19 +23,26 @@ def predict(model, dataloader, verbose=True, dev=torch.device('cpu'), normalize_
     else:
         bar = dataloader
         
-    img_features_list = []
+    query_features_list = []
+    ref_feature_list = []
     
     ids_list = []
     with torch.no_grad():
         
-        for img, ids in bar:
+        # for img, ids, txt in bar:
+        for anchor, positive, negative, txt, idx in bar:
         
-            ids_list.append(ids)
-            img = img.to(dev)
-            if(isQuery):
-                img_feature = model(q = img, r = img, isTrain = False, isQuery = True)
-            else:
-                img_feature = model(q = img, r = img, isTrain = False, isQuery = False)
+            ids_list.append(idx)
+            # img = img.to(dev)
+            anchor, positive, negative = anchor.to(dev), positive.to(dev), negative.to(dev)
+
+            # if(isQuery):
+            #     img_feature = model(q = img, r = img, t=txt, isTrain = False, isQuery = True)
+            # else:
+            #     img_feature = model(q = img, r = img, t=txt, isTrain = False, isQuery = False)
+
+            query_feature,  ref_feature = model(q = anchor, r = positive, t=txt, isTrain = False, isQuery = True)
+
 
             # if(dev !='cpu'):    
             #     with autocast():
@@ -58,10 +65,18 @@ def predict(model, dataloader, verbose=True, dev=torch.device('cpu'), normalize_
             #     img_feature = F.normalize(img_feature, dim=-1)
             
             # save features in fp32 for sim calculation
-            img_features_list.append(img_feature.to(torch.float32))
+            # img_features_list.append(img_feature.to(torch.float32))
+            query_features_list.append(query_feature)
+            ref_feature_list.append(ref_feature)
+
+
       
         # keep Features on GPU
-        img_features = torch.cat(img_features_list, dim=0) 
+        # img_features = torch.cat(img_features_list, dim=0) 
+
+        query_features = torch.cat(query_features_list, dim=0) 
+        ref_features = torch.cat(ref_feature_list, dim=0) 
+
         ids_list = torch.cat(ids_list, dim=0).to(dev)
 
         # print(f'img_feature: {img_features.shape}')
@@ -70,7 +85,7 @@ def predict(model, dataloader, verbose=True, dev=torch.device('cpu'), normalize_
     if verbose:
         bar.close()
         
-    return img_features, ids_list
+    return query_features,  ref_features, ids_list
 
 
 def calculate_scores(query_features, reference_features, query_labels, reference_labels, step_size=1000, ranks=[1,5,10]):
@@ -156,13 +171,12 @@ def accuracy(query_features, reference_features, query_labels, topk=[1,5,10]):
     ts = time.time()
     N = query_features.shape[0]
     M = reference_features.shape[0]
-    topk.append(M//100)
+    topk.append(N//100)
     results = np.zeros([len(topk)])
     # for CVUSA, CVACT
     query_features = query_features.cpu()
     reference_features = reference_features.cpu()
     query_labels = query_labels.cpu()
-
 
     if N < 80000:
         query_features_norm = np.sqrt(np.sum((query_features**2).numpy(), axis=1, keepdims=True))
@@ -175,10 +189,10 @@ def accuracy(query_features, reference_features, query_labels, topk=[1,5,10]):
             # ranking = np.sum((similarity[i,:]>similarity[i,query_labels[i]])*1.)
             ranking = np.sum((similarity[i,:]>similarity[i,i])*1.)
 
-
             for j, k in enumerate(topk):
                 if ranking < k:
                     results[j] += 1.
+                # print(f'k: {k} == results: {results}')
     else:
         # split the queries if the matrix is too large, e.g. VIGOR
         assert N % 4 == 0

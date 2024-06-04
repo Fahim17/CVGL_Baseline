@@ -1,8 +1,7 @@
 import torch
 import clip
 # from transformers import CLIPModel
-from transformers import CLIPVisionModel, CLIPVisionModelWithProjection
-
+from transformers import CLIPVisionModel, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
 
 # OG CLIP
 # def getClipModel():
@@ -15,16 +14,28 @@ from transformers import CLIPVisionModel, CLIPVisionModelWithProjection
 
 
 # HuggingFace CLIP
-def getClipModel():
+def getClipVisionModel():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # model = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
-    model = CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-base-patch32").to(device)
-    # print(f'Model Device:{model.device}')
-    # for param in model.parameters():
+    model_v = CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    # print(f'Model Device:{model_v.device}')
+    # for param in model_v.parameters():
     #     param.requires_grad = False
 
-    return model
+    return model_v
+
+
+def getClipTextModel():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    model_t = CLIPTextModelWithProjection.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    # print(f'Model Device:{model_t.device}')
+    # for param in model_t.parameters():
+    #     param.requires_grad = False
+
+    return model_t
+
 
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"

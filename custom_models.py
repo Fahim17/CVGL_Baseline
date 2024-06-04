@@ -7,7 +7,8 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 from torchvision.models import resnet18, resnet50, ResNet18_Weights, ResNet50_Weights, vit_b_16, ViT_B_16_Weights
 from vit_pytorch import ViT
-from models.clip_b32 import getClipModel
+from models.clip_b32 import getClipTextModel, getClipVisionModel
+from transformers import AutoTokenizer, AutoProcessor
 
 
 
@@ -183,66 +184,93 @@ class CLIP_model(nn.Module):
         super(CLIP_model, self).__init__()
         self.modelName = 'CLIP'
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.query = getClipModel()
+        self.tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+        self.processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+
+
+        self.query = getClipVisionModel()
         # for param in self.query.parameters():
         #     param.requires_grad = False
-        self.ref = getClipModel()
+
+        self.ref = getClipVisionModel()
         # for param in self.ref.parameters():
         #     param.requires_grad = False
+
+        self.text = getClipTextModel()
+        for param in self.ref.parameters():
+            param.requires_grad = False
 
         # self.norm_shape = self.query.vision_model.post_layernorm.normalized_shape[0]
         self.norm_shape = self.query.visual_projection.out_features
 
-        self.query_fc1 = nn.Linear(self.norm_shape, embed_dim).to(device=self.device)
-        self.query_fc2 = nn.Linear(embed_dim, 512).to(device=self.device)
+        self.mlp_txt = nn.Linear(self.norm_shape*2, embed_dim).to(device=self.device)
+        # self.query_fc2 = nn.Linear(embed_dim, 512).to(device=self.device)
 
-        self.ref_fc1 = nn.Linear(self.norm_shape, embed_dim).to(device=self.device)
-        self.ref_fc2 = nn.Linear(embed_dim, 512).to(device=self.device)
+        # self.ref_fc1 = nn.Linear(self.norm_shape, embed_dim).to(device=self.device)
+        # self.ref_fc2 = nn.Linear(embed_dim, 512).to(device=self.device)
 
 
-    def get_vision_embeddings(self, imgs, isQ):
+    def get_vision_embeddings(self, imgs, isQ=True):
         # Preprocess the images
         temp_dic = {'pixel_values':imgs}
+        # temp_dic = self.processor(images=imgs, return_tensors="pt")
+
         # Use the CLIP model to get vision embeddings
         
         # with torch.no_grad():
         if isQ:
-            outputs = self.query(**temp_dic)
+            outputs = self.query(imgs)
         else:
-            outputs = self.ref(**temp_dic)
+            outputs = self.ref(imgs)
         # last_hidden_state = outputs.last_hidden_state
         # pooled_output = outputs.pooler_output  # pooled CLS states
         image_embeds = outputs.image_embeds
 
         return image_embeds
+    
+    def get_text_embeddings(self, txt):
+        txt = self.tokenizer(txt, padding=True, truncation=True, return_tensors="pt", max_length=77)
+        txt.to(device=self.device)
+        outputs = self.text(**txt)
+        text_embeds = outputs.text_embeds
+
+        return text_embeds
 
 
-    def forward(self, q, r, isTrain = True, isQuery = True):
+    def forward(self, q, r, t, isTrain = True, isQuery = True):
         xq = self.get_vision_embeddings(imgs = q, isQ = True )
+        # xt = self.get_text_embeddings(txt = t)
+        # xqt = torch.cat((xq, xt), 1)
+        # xqt = self.mlp_txt(xqt)
+
         # xq = self.query_fc1(xq)
         # xq = torch.relu(xq)
         # xq = self.query_fc2(xq)
         # xq = torch.sigmoid(xq)
 
         xr = self.get_vision_embeddings(imgs = r, isQ = False )
+        xt = self.get_text_embeddings(txt = t)
+        xrt = torch.cat((xr, xt), 1)
+        xrt = self.mlp_txt(xrt)
+
         # xr = self.ref_fc1(xr)
         # xr = torch.relu(xr)
         # xr = self.ref_fc2(xr)
         # xr = torch.sigmoid(xr)
         
         if isTrain:
-            # print(f'dukse train')
-            return xq, xr
+            # return xq, xr
+            return xq, xrt
             # return self.query.encode_image(q), self.ref.encode_image(r)
         else:
-            if isQuery:
-                # print(f'dukse query')
-                return xq
-                # return self.query.encode_image(q)
-            else:
-                # print(f'dukse ref')
-                return xr
-                # return self.ref.encode_image(r)
+            return xq, xrt
+            # if isQuery:
+            #     return xq
+            #     # return self.query.encode_image(q)
+            # else:
+            #     return xrt
+            #     # return self.ref.encode_image(r)
 
 
 

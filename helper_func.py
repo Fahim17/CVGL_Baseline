@@ -3,11 +3,12 @@ import math
 import pandas as pd
 import torch
 
-def save_losses(df, emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, mdl_nm, rslt):
+def save_losses(df, emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, val_sz, mdl_nm, rslt, msg):
 
     filepath = f'logs/losses_{loss_id}.txt'
     with open(filepath, 'w') as file:
         file.write('\nHyperparameter info:' + "\n\n")
+        file.write(f'Message: {msg}\n')
         file.write(f'Exp ID: {loss_id}\n')
         file.write(f'Embedded dimension: {emb_dim}\n')
         file.write(f'Learning rate: {ln_rate}\n')
@@ -15,6 +16,7 @@ def save_losses(df, emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, mdl_
         file.write(f'Loss Margin: {ls_mrgn}\n')
         file.write(f'Epoch: {epc}\n')
         file.write(f'Training Size: {trn_sz}\n')
+        file.write(f'Validation Size: {val_sz}\n')
         file.write(f'Model Name: {mdl_nm}\n')
         file.write('\n\n')
         file.write(f'Result: {rslt}\n')
@@ -26,7 +28,7 @@ def save_losses(df, emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, mdl_
 # save_dataframe_to_txt(df, 'data.txt')
 
 
-def hyparam_info(emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, mdl_nm):
+def hyparam_info(emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, val_sz, mdl_nm):
     print('\nHyperparameter info:')
     print(f'Exp ID: {loss_id}')
     print(f'Embedded dimension: {emb_dim}')
@@ -35,6 +37,7 @@ def hyparam_info(emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, mdl_nm)
     print(f'Loss Margin: {ls_mrgn}')
     print(f'Epoch: {epc}')
     print(f'Training Size: {trn_sz}')
+    print(f'Validation Size: {val_sz}')
     print(f'Model Name: {mdl_nm}')
     print('\n')
 

@@ -6,9 +6,10 @@ import time
 from datetime import datetime
 from torch.utils.data import DataLoader
 from eval import predict, accuracy
-
-from CVUSA_dataset import CVUSA_Dataset_Eval
+from torchvision import transforms
+from CVUSA_dataset import CVUSA_Dataset_Eval, CVUSA_dataset_cropped
 from eval import accuracy, predict
+from attributes import Configuration as hypm
 
 
 def time_stamp():
@@ -18,22 +19,41 @@ def time_stamp():
 
 
 def train_step_eval(step=-1, mdl=None, dev='cpu' ):
-    print(f'Train Step Eval: {step}')
+    print(f'\nTrain Step Eval: {step}')
+
 
     data_path = '/data/Research/Dataset/CVUSA_Cropped/CVUSA' #don't include the / at the end
 
-    val_que = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='query', transforms='Do Transform')
-    val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='reference', transforms='Do Transform')
-    val_loader_que = DataLoader(val_que, batch_size=64, shuffle=False)
-    val_loader_ref = DataLoader(val_ref, batch_size=64, shuffle=False)
+    transform = transforms.Compose([
+        # transforms.Resize((224, 224)),
+        transforms.RandomCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                            std=[0.229, 0.224, 0.225]),
+    ])
+    # val_que = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='query', transforms='Do Transform')
+    # val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='train', img_type='reference', transforms='Do Transform')
+    # val_loader_que = DataLoader(val_que, batch_size=64, shuffle=False)
+    # val_loader_ref = DataLoader(val_ref, batch_size=64, shuffle=False)
+
+    val_data= pd.read_csv(f'{data_path}/splits/val-19zl.csv', header=None)
+    val_ds = CVUSA_dataset_cropped(df = val_data, path=data_path, transform=transform, train=False, lang=hypm.lang)
+    val_loader = DataLoader(val_ds, batch_size=64, shuffle=False)
+
+    print(f'Number of Validation data: {val_data.shape[0]}')
+
+
 
     print("\nExtract Features:")
-    query_features, query_labels = predict(model=mdl, dataloader=val_loader_que, dev=dev, isQuery=True)
-    reference_features, reference_labels = predict(model = mdl, dataloader=val_loader_ref, dev=dev, isQuery=False) 
+    # query_features, query_labels = predict(model=mdl, dataloader=val_loader_que, dev=dev, isQuery=True)
+    # reference_features, reference_labels = predict(model = mdl, dataloader=val_loader_ref, dev=dev, isQuery=False) 
+    query_features, reference_features, labels = predict(model=mdl, dataloader=val_loader, dev=dev, isQuery=True)
+
 
     print("Compute Scores:")
-    r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=query_labels, topk=[1, 5, 10])
+    r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=labels, topk=[1, 5, 10])
 
+    print(r1)
         
 
 
@@ -49,13 +69,13 @@ def train(model, criterion, optimizer, train_loader, num_epochs=10, dev='cpu'):
         print(f'Epoch#{epoch}')
         running_loss = []
 
-        # if(epoch%10==0 and epoch != 0):
-        #     train_step_eval(step=epoch, mdl=model, dev=dev)
 
-        for i, (anchor, positive, negative) in enumerate(tqdm(train_loader)):
+
+        for i, (anchor, positive, negative, txt, idx) in enumerate(tqdm(train_loader)):
+
             optimizer.zero_grad()
             anchor, positive, negative = anchor.to(dev), positive.to(dev), negative.to(dev)
-            anchor_embedding, positive_embedding = model(q = anchor, r = positive, isTrain = True, isQuery = True)
+            anchor_embedding, positive_embedding = model(q = anchor, r = positive, t = txt, isTrain = True, isQuery = True)
 
 
             # print(anchor_embedding)
@@ -75,6 +95,9 @@ def train(model, criterion, optimizer, train_loader, num_epochs=10, dev='cpu'):
         print(f"Epoch: {epoch+1}/{num_epochs} Loss: {np.mean(running_loss)}")
         epoch_loss.append(np.mean(running_loss))
         # df_loss[epoch, "Loss"] = loss.cpu().detach().numpy()
+
+        if(epoch%10==0 and epoch != 0):
+            train_step_eval(step=epoch, mdl=model, dev=dev)
     
     # torch.save(model, f'model_weights/model_tr.pth')
     

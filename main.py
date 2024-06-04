@@ -23,7 +23,7 @@ import math
 from pytorch_metric_learning import losses as LS
 from helper_func import get_rand_id, hyparam_info, save_losses
 from transformers import CLIPProcessor
-from attributes import Configuration
+from attributes import Configuration as hypm
 
 
 
@@ -32,9 +32,9 @@ from attributes import Configuration
 # data_path = '/home/fa947945/datasets/CVUSA_Cropped/CVUSA' #don't include the / at the end
 data_path = '/data/Research/Dataset/CVUSA_Cropped/CVUSA' #don't include the / at the end
 
-train_data= pd.read_csv(f'{data_path}/splits/train-19zl.csv')
-# train_data= pd.read_csv(f'{data_path}/splits/train-19zl_30.csv')
-val_data= pd.read_csv(f'{data_path}/splits/val-19zl.csv')
+train_data= pd.read_csv(f'{data_path}/splits/train-19zl.csv', header=None)
+# train_data= pd.read_csv(f'{data_path}/splits/train-19zl_30.csv', header=None)
+val_data= pd.read_csv(f'{data_path}/splits/val-19zl.csv', header=None)
 
 # df_loss = pd.DataFrame(columns=['Loss'])
 
@@ -47,9 +47,11 @@ transform = transforms.Compose([
 ])
 
 
-train_ds = CVUSA_dataset_cropped(df = train_data, path=data_path, transform=transform)
-val_que = CVUSA_Dataset_Eval(data_folder=data_path, split='val', img_type='query', transforms=transform)
-val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='val', img_type='reference', transforms=transform)
+train_ds = CVUSA_dataset_cropped(df = train_data, path=data_path, transform=transform, train=True, lang=hypm.lang)
+val_ds = CVUSA_dataset_cropped(df = val_data, path=data_path, transform=transform, train=False, lang=hypm.lang)
+
+# val_que = CVUSA_Dataset_Eval(data_folder=data_path, split='val', img_type='query', transforms=transform)
+# val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='val', img_type='reference', transforms=transform)
 
 
 
@@ -58,20 +60,24 @@ val_ref = CVUSA_Dataset_Eval(data_folder=data_path, split='val', img_type='refer
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
-    embed_dim = 1000
+    embed_dim = 512
     lr = 0.00001
     batch_size = 64
-    epochs = 50
+    epochs = 100
     expID = get_rand_id()
     loss_margin = 1
 
 
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False)
-    val_loader_que = DataLoader(val_que, batch_size=batch_size, shuffle=False)
-    val_loader_ref = DataLoader(val_ref, batch_size=batch_size, shuffle=False)
 
-    os.mkdir(f'model_weights/{expID}')
+
+
+    train_loader = DataLoader(train_ds, batch_size=hypm.batch_size, shuffle=False)
+    val_loader = DataLoader(val_ds, batch_size=hypm.batch_size, shuffle=False)
+    # val_loader_ref = DataLoader(val_ref, batch_size=hypm.batch_size, shuffle=False)
+
+    if hypm.save_weights:
+        os.mkdir(f'model_weights/{hypm.expID}')
 
     # model = ResNet(emb_dim=embed_dim).to(device)
     # model_r = ResNet(emb_dim=embed_dim).to(device)
@@ -79,8 +85,10 @@ def main():
 
     # model = ResNet().to(device)
     # model = VIT().to(device)
-    model = CLIP_model(embed_dim=embed_dim)
-    
+    model = CLIP_model(embed_dim=hypm.embed_dim)
+
+    # model = torch.load(f'model_weights/{7355080}/model_tr.pth')
+
     # torch.save(model, f'model_weights/{expID}/model_st.pth')
 
     # criterion = TripletLoss(margin=loss_margin)
@@ -88,7 +96,7 @@ def main():
   
     # criterion = SoftTripletBiLoss()
 
-    loss_fn = torch.nn.CrossEntropyLoss(label_smoothing=0.5)
+    loss_fn = torch.nn.CrossEntropyLoss(label_smoothing=hypm.label_smoothing)
     criterion = InfoNCE(loss_function=loss_fn,
                             device=device,
                             )
@@ -99,47 +107,62 @@ def main():
     # for name, param in model.named_parameters():
     #     if param.requires_grad:
     #         print(name)
-    optimizer = optim.Adam(parameters, lr=lr)
+    optimizer = optim.Adam(parameters, lr=hypm.lr)
     # optimizer = optim.AdamW(parameters, lr=lr)
     # optimizer = optim.SGD(parameters, lr=lr)
 
     
     
-    hyparam_info(emb_dim=embed_dim, loss_id=expID, ln_rate=lr, batch=batch_size, epc=epochs, ls_mrgn=loss_margin, trn_sz=train_data.shape[0], mdl_nm=model.modelName)
+    hyparam_info(emb_dim = hypm.embed_dim, 
+                 loss_id = hypm.expID, 
+                 ln_rate = hypm.lr, 
+                 batch = hypm.batch_size, 
+                 epc = hypm.epochs, 
+                 ls_mrgn = hypm.loss_margin, 
+                 trn_sz = train_data.shape[0],
+                 val_sz= val_data.shape[0],
+                 mdl_nm = model.modelName)
 
     print("Training Start")
-    all_loses = train(model, criterion, optimizer, train_loader, num_epochs=epochs, dev=device)
+    all_loses = train(model, criterion, optimizer, train_loader, num_epochs=hypm.epochs, dev=device)
     df_loss = pd.DataFrame({'Loss': all_loses})
     df_loss.to_csv(f'losses/losses_{expID}.csv')
 
 
 
     print("\nExtract Features:")
-    query_features, query_labels = predict(model=model, dataloader=val_loader_que, dev=device, isQuery=True)
-    reference_features, reference_labels = predict(model = model, dataloader=val_loader_ref, dev=device, isQuery=False) 
+    query_features, reference_features, labels = predict(model=model, dataloader=val_loader, dev=device, isQuery=True)
+    # reference_features, reference_labels = predict(model = model, dataloader=val_loader_ref, dev=device, isQuery=False) 
     
 
 
     print("Compute Scores:")
     # r1 =  calculate_scores(query_features, reference_features, query_labels, reference_labels, step_size=1000, ranks=[1, 5, 10])
-    r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=query_labels, topk=[1, 5, 10])
+    r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=labels, topk=[1, 5, 10])
+
+    if hypm.save_weights:
+        torch.save(model, f'model_weights/{hypm.expID}/model_tr.pth')
     
+
+
+
+
     save_losses(df=df_loss, 
-                emb_dim=embed_dim, 
-                loss_id=expID, 
-                ln_rate=lr, 
-                batch=batch_size, 
-                epc=epochs, 
-                ls_mrgn=loss_margin, 
+                emb_dim=hypm.embed_dim, 
+                loss_id=hypm.expID, 
+                ln_rate=hypm.lr, 
+                batch=hypm.batch_size, 
+                epc=hypm.epochs, 
+                ls_mrgn=hypm.loss_margin, 
                 trn_sz=train_data.shape[0],
+                val_sz= val_data.shape[0],
                 mdl_nm=model.modelName,
-                rslt=r1)
+                rslt=r1,
+                msg='Text with Sat T2')
 
 
-    print(r1) 
+    print(f'{r1}\n') 
         
-
-    torch.save(model, f'model_weights/{expID}/model_tr.pth')
 
 
 
