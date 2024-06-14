@@ -2,12 +2,14 @@ from datetime import datetime
 import math
 import pandas as pd
 import torch
+import csv
+import os
 
-def save_losses(df, emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, val_sz, mdl_nm, rslt, msg):
+def save_exp(emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, val_sz, mdl_nm, msg):
 
-    filepath = f'logs/losses_{loss_id}.txt'
+    filepath = f'logs/log_{loss_id}.txt'
     with open(filepath, 'w') as file:
-        file.write('\nHyperparameter info:' + "\n\n")
+        file.write(f'\nHyperparameter info: {datetime.now()}' + "\n\n")
         file.write(f'Message: {msg}\n')
         file.write(f'Exp ID: {loss_id}\n')
         file.write(f'Embedded dimension: {emb_dim}\n')
@@ -19,9 +21,43 @@ def save_losses(df, emb_dim, loss_id, ln_rate, batch, epc, ls_mrgn, trn_sz, val_
         file.write(f'Validation Size: {val_sz}\n')
         file.write(f'Model Name: {mdl_nm}\n')
         file.write('\n\n')
-        file.write(f'Result: {rslt}\n')
     
-        df.to_string(file, index=False)
+        # df.to_string(file, index=True)
+
+
+def write_to_file(expID, msg, content):
+
+    filepath = f'logs/log_{expID}.txt'
+    with open(filepath, 'a') as file:
+        file.write(f'\n{msg}')
+        file.write(f'{content}\n')
+    
+
+
+
+def write_to_rank_file(expID, step, row):
+    # Check if the file exists
+    file_path = f'rank/rank_{expID}.csv'
+    file_exists = os.path.isfile(file_path)
+
+    row = row.tolist()
+    row.insert(0, step)
+    
+    # Open the file in append mode ('a'), if the file doesn't exist, it will be created
+    with open(file_path, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        # If the file doesn't exist, you might want to write the header
+        if not file_exists:
+            # Assuming the first row of the data to be added is the header
+            header = ["epoch", "top1", "top5", "top10", "top1%"]  # Modify this according to your header
+            writer.writerow(header)
+        
+        # Write the row to the CSV file
+        writer.writerow(row)
+
+
+
 
 # Example usage:
 # Assuming you have a DataFrame named 'df' and you want to save it to 'data.txt'

@@ -21,7 +21,7 @@ import torch.nn.functional as F
 import copy
 import math
 from pytorch_metric_learning import losses as LS
-from helper_func import get_rand_id, hyparam_info, save_losses
+from helper_func import get_rand_id, hyparam_info, save_exp, write_to_file, write_to_rank_file
 from transformers import CLIPProcessor
 from attributes import Configuration as hypm
 
@@ -32,8 +32,10 @@ from attributes import Configuration as hypm
 # data_path = '/home/fa947945/datasets/CVUSA_Cropped/CVUSA' #don't include the / at the end
 data_path = '/data/Research/Dataset/CVUSA_Cropped/CVUSA' #don't include the / at the end
 
-train_data= pd.read_csv(f'{data_path}/splits/train-19zl.csv', header=None)
+# train_data= pd.read_csv(f'{data_path}/splits/train-19zl.csv', header=None)
+train_data= pd.read_csv(f'{data_path}/splits/train-19zl_5.csv', header=None)
 # train_data= pd.read_csv(f'{data_path}/splits/train-19zl_30.csv', header=None)
+
 val_data= pd.read_csv(f'{data_path}/splits/val-19zl.csv', header=None)
 
 # df_loss = pd.DataFrame(columns=['Loss'])
@@ -59,17 +61,21 @@ val_ds = CVUSA_dataset_cropped(df = val_data, path=data_path, transform=transfor
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Device: {device}")
     embed_dim = 512
-    lr = 0.00001
+    lr = 0.000001
     batch_size = 64
     epochs = 100
     expID = get_rand_id()
     loss_margin = 1
 
+    hypm.expID = expID
 
 
 
+
+
+
+    # print(f"Device: {device}")
 
 
     train_loader = DataLoader(train_ds, batch_size=hypm.batch_size, shuffle=False)
@@ -98,7 +104,7 @@ def main():
 
     loss_fn = torch.nn.CrossEntropyLoss(label_smoothing=hypm.label_smoothing)
     criterion = InfoNCE(loss_function=loss_fn,
-                            device=device,
+                            device=hypm.device,
                             )
 
 
@@ -122,33 +128,8 @@ def main():
                  trn_sz = train_data.shape[0],
                  val_sz= val_data.shape[0],
                  mdl_nm = model.modelName)
-
-    print("Training Start")
-    all_loses = train(model, criterion, optimizer, train_loader, num_epochs=hypm.epochs, dev=device)
-    df_loss = pd.DataFrame({'Loss': all_loses})
-    df_loss.to_csv(f'losses/losses_{expID}.csv')
-
-
-
-    print("\nExtract Features:")
-    query_features, reference_features, labels = predict(model=model, dataloader=val_loader, dev=device, isQuery=True)
-    # reference_features, reference_labels = predict(model = model, dataloader=val_loader_ref, dev=device, isQuery=False) 
     
-
-
-    print("Compute Scores:")
-    # r1 =  calculate_scores(query_features, reference_features, query_labels, reference_labels, step_size=1000, ranks=[1, 5, 10])
-    r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=labels, topk=[1, 5, 10])
-
-    if hypm.save_weights:
-        torch.save(model, f'model_weights/{hypm.expID}/model_tr.pth')
-    
-
-
-
-
-    save_losses(df=df_loss, 
-                emb_dim=hypm.embed_dim, 
+    save_exp(emb_dim=hypm.embed_dim, 
                 loss_id=hypm.expID, 
                 ln_rate=hypm.lr, 
                 batch=hypm.batch_size, 
@@ -157,11 +138,41 @@ def main():
                 trn_sz=train_data.shape[0],
                 val_sz= val_data.shape[0],
                 mdl_nm=model.modelName,
-                rslt=r1,
-                msg='Text with Sat T2')
+                msg=f'Text with {hypm.lang_with} {hypm.lang}')
+
+    print("Training Start")
+    all_loses = train(model, criterion, optimizer, train_loader, num_epochs=hypm.epochs, dev=hypm.device)
+    df_loss = pd.DataFrame({'Loss': all_loses})
+    df_loss.to_csv(f'losses/losses_{hypm.expID}.csv')
+
+    write_to_file(expID=hypm.expID, msg=f'End of training: ', content=datetime.now())
 
 
+    print("\nExtract Features:")
+    query_features, reference_features, labels = predict(model=model, dataloader=val_loader, dev=hypm.device, isQuery=True)
+    # reference_features, reference_labels = predict(model = model, dataloader=val_loader_ref, dev=hypm.device, isQuery=False) 
+    
+
+
+    print("Compute Scores:")
+    # r1 =  calculate_scores(query_features, reference_features, query_labels, reference_labels, step_size=1000, ranks=[1, 5, 10])
+    r1 =  accuracy(query_features=query_features, reference_features=reference_features, query_labels=labels, topk=[1, 5, 10])
     print(f'{r1}\n') 
+
+    write_to_file(expID=hypm.expID, msg=f'Final eval: ', content=r1)
+    write_to_rank_file(expID=hypm.expID, step=hypm.epochs, row=r1)
+
+
+
+    if hypm.save_weights:
+        torch.save(model, f'model_weights/{hypm.expID}/model_tr.pth')
+    
+
+
+
+
+
+    torch.cuda.empty_cache()
         
 
 

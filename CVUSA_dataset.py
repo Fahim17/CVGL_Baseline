@@ -11,6 +11,8 @@ import json
 from torchvision.transforms import transforms
 import random
 from transformers import CLIPProcessor, AutoProcessor, AutoTokenizer
+from attributes import Configuration as hypm
+
 
 
 class CVUSA_dataset_cropped(Dataset):
@@ -20,8 +22,8 @@ class CVUSA_dataset_cropped(Dataset):
         self.transform = transform
         self.path = path
         self.lang = lang
-        self.tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-        self.processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        self.tokenizer = AutoTokenizer.from_pretrained(hypm.t_pretrain_weight)
+        self.processor = AutoProcessor.from_pretrained(hypm.v_pretrain_weight)
 
         # if self.is_train:
         self.sat_images = df.iloc[:, 0].values

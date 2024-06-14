@@ -10,7 +10,7 @@ from vit_pytorch import ViT
 from models.clip_b32 import getClipTextModel, getClipVisionModel
 from transformers import AutoTokenizer, AutoProcessor
 
-
+from attributes import Configuration as hypm
 
 
 
@@ -183,9 +183,9 @@ class CLIP_model(nn.Module):
     def __init__(self, embed_dim):
         super(CLIP_model, self).__init__()
         self.modelName = 'CLIP'
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-        self.processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        self.device = hypm.device
+        self.tokenizer = AutoTokenizer.from_pretrained(hypm.t_pretrain_weight)
+        self.processor = AutoProcessor.from_pretrained(hypm.v_pretrain_weight)
 
 
 
@@ -198,8 +198,8 @@ class CLIP_model(nn.Module):
         #     param.requires_grad = False
 
         self.text = getClipTextModel()
-        for param in self.ref.parameters():
-            param.requires_grad = False
+        # for param in self.text.parameters():
+        #     param.requires_grad = False
 
         # self.norm_shape = self.query.vision_model.post_layernorm.normalized_shape[0]
         self.norm_shape = self.query.visual_projection.out_features
@@ -251,20 +251,28 @@ class CLIP_model(nn.Module):
 
         xr = self.get_vision_embeddings(imgs = r, isQ = False )
         xt = self.get_text_embeddings(txt = t)
-        xrt = torch.cat((xr, xt), 1)
-        xrt = self.mlp_txt(xrt)
+
+        if (hypm.lang_with=='sat'):
+            xlt = torch.cat((xr, xt), 1)
+            xlt = self.mlp_txt(xlt)
+            return xq, xlt
+        else:
+            xlt = torch.cat((xq, xt), 1)
+            xlt = self.mlp_txt(xlt)
+            return xlt, xr
+
 
         # xr = self.ref_fc1(xr)
         # xr = torch.relu(xr)
         # xr = self.ref_fc2(xr)
         # xr = torch.sigmoid(xr)
         
-        if isTrain:
-            # return xq, xr
-            return xq, xrt
+        # if isTrain:
+        #     # return xq, xr
+        #     return xq, xlt
             # return self.query.encode_image(q), self.ref.encode_image(r)
-        else:
-            return xq, xrt
+        # else:
+        #     return xq, xlt
             # if isQuery:
             #     return xq
             #     # return self.query.encode_image(q)
