@@ -202,13 +202,20 @@ class CLIP_model(nn.Module):
         #     param.requires_grad = False
 
         # self.norm_shape = self.query.vision_model.post_layernorm.normalized_shape[0]
-        self.norm_shape = self.query.visual_projection.out_features
+        self.vis_embed_shape = self.query.visual_projection.out_features
+        self.txt_embed_shape = self.text.text_projection.out_features
 
-        self.mlp_txt = nn.Linear(self.norm_shape*2, embed_dim).to(device=self.device)
-        # self.query_fc2 = nn.Linear(embed_dim, 512).to(device=self.device)
+        self.mlp_txt = nn.Linear(self.vis_embed_shape + self.txt_embed_shape, embed_dim).to(device=self.device)
 
-        # self.ref_fc1 = nn.Linear(self.norm_shape, embed_dim).to(device=self.device)
-        # self.ref_fc2 = nn.Linear(embed_dim, 512).to(device=self.device)
+        self.vis_txt_L1 = nn.Linear(embed_dim, embed_dim).to(device=self.device)
+        self.vis_txt_L2 = nn.Linear(embed_dim, embed_dim).to(device=self.device)
+        self.vis_txt_L3 = nn.Linear(embed_dim, embed_dim).to(device=self.device)
+
+        self.vis_L1 = nn.Linear(embed_dim, embed_dim).to(device=self.device)
+        self.vis_L2 = nn.Linear(embed_dim, embed_dim).to(device=self.device)
+        self.vis_L3 = nn.Linear(embed_dim, embed_dim).to(device=self.device)
+
+
 
 
     def get_vision_embeddings(self, imgs, isQ=True):
@@ -252,9 +259,19 @@ class CLIP_model(nn.Module):
         xr = self.get_vision_embeddings(imgs = r, isQ = False )
         xt = self.get_text_embeddings(txt = t)
 
+
         if (hypm.lang_with=='sat'):
-            xlt = torch.cat((xr, xt), 1)
-            xlt = self.mlp_txt(xlt)
+            # xlt = torch.cat((xr, xt), 1)
+            # xlt = self.mlp_txt(xlt)
+
+            xlt = self.vis_txt_L1(xr)
+            xlt = self.vis_txt_L2(xr)
+            xlt = self.vis_txt_L3(xr)
+
+            xq = self.vis_L1(xq)
+            xq = self.vis_L2(xq)
+            xq = self.vis_L3(xq)
+
             return xq, xlt
         else:
             xlt = torch.cat((xq, xt), 1)

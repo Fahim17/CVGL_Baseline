@@ -1,7 +1,7 @@
 import torch
 import clip
 # from transformers import CLIPModel
-from transformers import CLIPVisionModel, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
+from transformers import CLIPVisionModel, CLIPVisionModelWithProjection, CLIPTextModelWithProjection, CLIPModel
 from attributes import Configuration as hypm
 
 # OG CLIP
@@ -19,6 +19,7 @@ def getClipVisionModel():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # model = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    # model_v = CLIPModel.from_pretrained(hypm.v_pretrain_weight).to(hypm.device)
     model_v = CLIPVisionModelWithProjection.from_pretrained(hypm.v_pretrain_weight).to(hypm.device)
     # print(f'Model Device:{model_v.device}')
     for param in model_v.parameters():

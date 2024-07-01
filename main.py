@@ -32,8 +32,8 @@ from attributes import Configuration as hypm
 # data_path = '/home/fa947945/datasets/CVUSA_Cropped/CVUSA' #don't include the / at the end
 data_path = '/data/Research/Dataset/CVUSA_Cropped/CVUSA' #don't include the / at the end
 
-# train_data= pd.read_csv(f'{data_path}/splits/train-19zl.csv', header=None)
-train_data= pd.read_csv(f'{data_path}/splits/train-19zl_5.csv', header=None)
+train_data= pd.read_csv(f'{data_path}/splits/train-19zl.csv', header=None)
+# train_data= pd.read_csv(f'{data_path}/splits/train-19zl_5.csv', header=None)
 # train_data= pd.read_csv(f'{data_path}/splits/train-19zl_30.csv', header=None)
 
 val_data= pd.read_csv(f'{data_path}/splits/val-19zl.csv', header=None)
@@ -117,6 +117,7 @@ def main():
     # optimizer = optim.AdamW(parameters, lr=lr)
     # optimizer = optim.SGD(parameters, lr=lr)
 
+
     
     
     hyparam_info(emb_dim = hypm.embed_dim, 
@@ -137,8 +138,8 @@ def main():
                 ls_mrgn=hypm.loss_margin, 
                 trn_sz=train_data.shape[0],
                 val_sz= val_data.shape[0],
-                mdl_nm=model.modelName,
-                msg=f'Text with {hypm.lang_with} {hypm.lang}')
+                mdl_nm=hypm.v_pretrain_weight,
+                msg= hypm.msg)
 
     print("Training Start")
     all_loses = train(model, criterion, optimizer, train_loader, num_epochs=hypm.epochs, dev=hypm.device)
